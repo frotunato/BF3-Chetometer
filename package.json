@@ -1,0 +1,16 @@
+{
+	"name": "BF3-Chetometer",
+	"version": "1.0.0",
+	"main": "server/app.js",
+	"repository": {
+	  "type": "git",
+	  "url": "http://github.com/frotunato/BF3-Chetometer.git"
+	},
+	"dependencies": {
+		"express": "latest",
+		"async": "latest",
+		"jade": "latest",
+		"socket.io": "latest",
+		"compression": "latest"
+	}
+}

@@ -1,0 +1,80 @@
+html
+	head
+		link(rel="stylesheet" href="http://yui.yahooapis.com/pure/0.6.0/pure-min.css")
+		title BF3 Cheatmeter
+		script(src="/socket.io/socket.io.js")
+		script.
+			var socket = io();
+			document.addEventListener('DOMContentLoaded', function (event) {
+				var serverName = document.getElementById('result-table').firstChild.firstChild.firstChild;
+				var tableBody = document.getElementById('result-table').childNodes[1];
+				var btnSubmit = document.getElementById('btnSubmit');
+				var input = document.getElementById('serverID');
+				var alphaTime = null;
+				
+				document.getElementById("btnSubmit").onclick = function () {
+					console.log(input.value)
+					socket.emit('check', input.value);
+					input = '';
+					while (tableBody.firstChild) {
+						tableBody.removeChild(tableBody.firstChild);
+					}
+					document.getElementById('btnSubmit').innerHTML = "Loading...";
+					alphaTime = Date.now();
+				}
+			
+				socket.on('check', function (data) {
+					var b = Date.now();
+					btnSubmit.innerHTML = "Send (Ready)";
+					console.log(b - alphaTime)
+					serverName.innerHTML = data.name;
+					for (var i = 0; i < data.players.length; i++) {
+						var tableRow = document.createElement('tr');
+						tableRow.id = 'row-' + i;
+						var tableDataPlayer = document.createElement('td');
+						var playerLink = tableDataPlayer.appendChild(document.createElement('a'));
+						var tableDataPlayerNumber = document.createElement('td');
+						tableDataPlayerNumber.innerHTML = i;
+						playerLink.innerHTML = data.players[i].user;
+						playerLink.href = "http://battlelog.battlefield.com/bf3/soldier/" + data.players[i].user + " /stats/" + data.players[i].id + "/pc/"
+						playerLink.target= "_blank";
+						var tableDataEvaluation = document.createElement('td');
+						var playerValue = data.players[i].evaluation;
+						if (playerValue >= 5 && playerValue < 10) {
+							tableDataEvaluation.setAttribute('style', "color:#FAAC58;background-color:#F6E3CE");
+						} else if (playerValue < 5) {
+							tableDataEvaluation.setAttribute('style', "color:#5FB404;background-color:#D8F6CE");
+						} else {
+							tableDataEvaluation.setAttribute('style', "color:#FF0040;background-color:#F5A9A9");
+						}
+						var tableServerTitle = document.createElement('th');
+						//tableDataPlayer.innerHTML = data.players[i].user;
+						tableDataEvaluation.innerHTML = data.players[i].evaluation + ' %';
+						tableBody.appendChild(tableRow);
+						tableBody.childNodes[i].appendChild(tableDataPlayerNumber);
+						tableBody.childNodes[i].appendChild(tableDataPlayer)
+						tableBody.childNodes[i].appendChild(tableDataEvaluation)
+					}
+				})
+				socket.on('percent', function (data) {
+					btnSubmit.innerHTML = "Loading... (" + data + "%)";
+				})
+				socket.on('invalidURL', function (msg) {
+					window.alert(msg);
+					btnSubmit.innerHTML = "Send (Ready)";
+					input = '';
+				})
+			});
+	body
+		div(class="pure-control-group")
+			input(type="text" id="serverID" placeholder="Introduce server's URL" onkeydown="if (event.keyCode == 13) document.getElementById('btnSubmit').click()")
+			button(id="btnSubmit" class="pure-button" type="submit") Send (Ready)
+		table(id="result-table" class="pure-table pure-table-striped")
+			thead
+				tr
+					th(colspan="3") Server name
+				tr
+					th #
+					th Player
+					th Cheat level
+			tbody
