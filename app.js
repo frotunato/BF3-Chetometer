@@ -3,7 +3,7 @@ var express = require('express');
 var app = express();
 var server = http.createServer(app);
 var io = require('socket.io')(server);
-var async = require('./async.js');
+var async = require('async.js');
 var path = require('path');
 var compress = require('compression');
 var players = [];
@@ -133,6 +133,10 @@ io.on('connection', function (socket) {
     })
 })
 
-server.listen(4000, process.env.IP, function () {
+
+var ipaddress = process.env.OPENSHIFT_NODEJS_IP || "127.0.0.1";
+var port = process.env.OPENSHIFT_NODEJS_PORT || 8080;
+
+server.listen(port, ipaddress, function () {
     console.log('Server launched at port 4000');
 });
