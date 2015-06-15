@@ -1,0 +1,12 @@
+node_modules
+public
+*.tmp
+client/bower_components
+dist
+secret.json
+*.dmp
+*.log
+*.pem
+server/container
+server/temp
+*.tar

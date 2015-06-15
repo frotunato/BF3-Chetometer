@@ -3,10 +3,9 @@ var express = require('express');
 var app = express();
 var server = http.createServer(app);
 var io = require('socket.io')(server);
-var async = require('async.js');
+var async = require('async');
 var path = require('path');
 var compress = require('compression');
-var players = [];
 
 function compare(a,b) {
   if (a.evaluation < b.evaluation)
@@ -29,7 +28,7 @@ function getPlayers (serverID, callback) {
         });
         response.on('end', function() {
             var parsed = JSON.parse(body).players;
-            players = parsed.map(function (e) {
+            var players = parsed.map(function (e) {
                 return {user:e.persona.personaName, evaluation: '', id: e.persona.personaId};
             })
             callback(players);
@@ -38,33 +37,50 @@ function getPlayers (serverID, callback) {
 };
 
 function checkPlayerCheat (username, callback) {
-    return http.get({
+    http.get({
         host: 'www.frstats.net',
         path: '/CheatEvaluator.php?Joueur=' + username
     }, function (response) {
+        console.log(response.statusCode);
         var body = '';
         //console.log('Path:', '/CheatEvaluator.php?Joueur=' + username);
         response.on('data', function (d) {
             body += d;
         });
+        response.on('ECONNRESET', function () {
+            console.log('ECONNRESET');
+        })
+        response.on('error', function (mgs) {
+            console.log('msg', 'error')
+        })
         response.on('end', function () {
             var splitted = body.split("\n")
-            //console.log(body)
             for (var i = 0; i < splitted.length; i++) {
                 if (splitted[i].length === 241) {
                     break;
                 }
-            };
+            }
             
             if (splitted[i + 1] === undefined) {
                 return callback(null)
             }
             
             var evaluation = splitted[i+1].split('(')[1].split(')')[0];
-            evaluation = Number(evaluation.substring(0,evaluation.length-2))
+            evaluation = Number(evaluation.substring(0,evaluation.length - 2));
             callback(evaluation);
         });
-    });
+    }).on('error', function (err) {
+        console.log('error!!!', err, username);
+        if (err.code === 'ETIMEDOUT') {
+            checkPlayerCheat(username, function (evaluation) {
+                callback(evaluation);
+                console.log('gotta ETIMEDOUT, retried')
+            })
+        } else {
+            callback(null);
+        }
+        //callback(null)
+    })
 };
 
 function getServerCheats (server, socket, cb) {
@@ -77,10 +93,11 @@ function getServerCheats (server, socket, cb) {
         function (players, socket, cb) {
             var q = async.queue(function (player, callback) {
                 checkPlayerCheat(player.user, function (evaluation) {
-                    console.log(q.length())
-                    socket.emit('percent', Math.round(100 - (q.length()*100)/players.length));
                     player.evaluation = evaluation;
                     setTimeout(function() {
+                    //console.log(100 - (q.length()*100)/players.length)
+                    
+                        socket.emit('percent', Math.round(100 - (q.length()*100)/players.length));
                         //console.log('waited 30ms before releasing');
                         callback();
                     }, 30)
@@ -91,7 +108,7 @@ function getServerCheats (server, socket, cb) {
                 cb(null, players);
             }
         }], 
-        function (err, playes) {
+        function (err, players) {
             players = players.sort(compare);
             for (var i = 0; i < players.length; i++) {
                 if (players[i].evaluation === null) {
@@ -105,6 +122,15 @@ function getServerCheats (server, socket, cb) {
     );
 };
 
+function getServerNameAndID (url) {
+    var splitted = url.split('-');
+    var serverName = splitted.slice(5).join(' ').replace(/\//g, " ");
+    splitted[0] = splitted[0].substring(splitted[0].lastIndexOf('/') + 1);
+    splitted[4] = splitted[4].substring(0, splitted[4].indexOf('/'));
+    var serverID = splitted.slice(0, 5).join('-');
+    return {id: serverID, name: serverName};
+};
+
 app
     .set('view engine', 'jade')
     .use(compress())
@@ -115,20 +141,14 @@ app
 
 io.on('connection', function (socket) {
     socket.on('check', function (data) {
-        if (data) {
-            data = data.replace(":80", "");
-            console.log(data);
-            var index = data.indexOf('battlelog.battlefield.com/bf3/servers/show/pc/');
-            if (index !== -1) {
-                index = index + 46
-                var serverID = data.substring(index, index + 36);
-                var serverName = data.substring(index + 36).replace(/-/g, " ").replace(/\//g, " ");
-                getServerCheats(serverID, socket, function (players) {
-                    socket.emit('check', {players: players, name: serverName});
-                })
-            } else {
-                socket.emit('invalidURL', 'Invalid URL');
-            }
+        console.log(data)
+        if (data && data.indexOf('battlelog.battlefield.com') !== -1) {
+            var serverInfo = getServerNameAndID(data);
+            getServerCheats(serverInfo.id, socket, function (players) {
+                socket.emit('check', {players: players, name: serverInfo.name});
+            })
+        } else {
+            socket.emit('invalidURL', 'Invalid URL ' + data);
         }
     })
 })
